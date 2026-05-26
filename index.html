@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkmate — AI Checklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --accent: #c8f55a;
+    --accent-dim: rgba(200,245,90,0.12);
+    --accent-glow: rgba(200,245,90,0.25);
+    --text: #f0f0f0;
+    --muted: #666;
+    --done: #3a3a3a;
+    --done-text: #555;
+    --red: #ff5a5a;
+    --red-dim: rgba(255,90,90,0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(200,245,90,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200,245,90,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Header ── */
+  header {
+    margin-bottom: 56px;
+    animation: fadeSlideDown 0.6s ease both;
+  }
+
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 48px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1;
+    color: var(--text);
+  }
+  .logo span { color: var(--accent); }
+
+  .tagline {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  /* ── API Key banner ── */
+  #api-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 32px;
+    animation: fadeSlideDown 0.6s 0.1s ease both;
+  }
+  #api-banner.hidden { display: none; }
+
+  #api-banner .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50% { opacity:.5; transform:scale(.8); }
+  }
+
+  #api-key-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+    letter-spacing: 1px;
+  }
+  #api-key-input::placeholder { color: var(--muted); }
+
+  #save-key-btn {
+    background: var(--accent);
+    color: #0d0d0d;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+  }
+  #save-key-btn:hover { opacity: 0.8; }
+
+  .key-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--accent);
+    animation: fadeSlideDown 0.4s ease both;
+    margin-bottom: 32px;
+  }
+  .key-status.hidden { display: none; }
+  .key-status button {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .key-status button:hover { color: var(--red); }
+
+  /* ── Lists sidebar + main ── */
+  .workspace {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 24px;
+    animation: fadeSlideDown 0.6s 0.2s ease both;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {}
+
+  .sidebar-title {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+    padding-left: 12px;
+  }
+
+  .list-nav { display: flex; flex-direction: column; gap: 4px; }
+
+  .list-tab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--muted);
+    transition: all 0.15s;
+    border: 1px solid transparent;
+    gap: 6px;
+  }
+  .list-tab:hover { background: var(--surface2); color: var(--text); }
+  .list-tab.active {
+    background: var(--accent-dim);
+    border-color: rgba(200,245,90,0.3);
+    color: var(--accent);
+  }
+
+  .list-tab .tab-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .list-tab .tab-count {
+    font-size: 10px;
+    background: var(--surface2);
+    border-radius: 99px;
+    padding: 1px 7px;
+    color: var(--muted);
+  }
+  .list-tab.active .tab-count {
+    background: var(--accent);
+    color: #0d0d0d;
+  }
+  .list-tab .del-list {
+    opacity: 0;
+    background: none;
+    border: none;
+    color: var(--red);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .list-tab:hover .del-list { opacity: 1; }
+
+  .add-list-btn {
+    margin-top: 8px;
+    width: 100%;
+    padding: 9px 12px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+  }
+  .add-list-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Main checklist area ── */
+  .main-area {}
+
+  .list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 12px;
+  }
+
+  .list-title-input {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 700;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    width: 100%;
+    border-bottom: 2px solid transparent;
+    padding-bottom: 2px;
+    transition: border-color 0.2s;
+  }
+  .list-title-input:focus { border-color: var(--accent); }
+
+  .ai-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(200,245,90,0.3);
+    color: var(--accent);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .ai-btn:hover { background: var(--accent-glow); }
+  .ai-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Add item bar ── */
+  .add-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .add-input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .add-input:focus { border-color: var(--accent); }
+  .add-input::placeholder { color: var(--muted); }
+
+  .add-submit {
+    background: var(--accent);
+    color: #0d0d0d;
+    border: none;
+    border-radius: 10px;
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .add-submit:hover { opacity: 0.85; transform: scale(1.05); }
+
+  /* ── AI prompt box ── */
+  .ai-prompt-box {
+    background: var(--surface);
+    border: 1px solid rgba(200,245,90,0.25);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    display: none;
+    animation: fadeSlideDown 0.3s ease;
+  }
+  .ai-prompt-box.open { display: block; }
+
+  .ai-prompt-box textarea {
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+    resize: none;
+    min-height: 60px;
+  }
+  .ai-prompt-box textarea::placeholder { color: var(--muted); }
+
+  .ai-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .ai-cancel {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 7px;
+    padding: 6px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .ai-generate {
+    background: var(--accent);
+    color: #0d0d0d;
+    border: none;
+    border-radius: 7px;
+    padding: 6px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .ai-generate:hover { opacity: 0.85; }
+  .ai-generate:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Task list ── */
+  .tasks { display: flex; flex-direction: column; gap: 6px; }
+
+  .task-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    transition: all 0.2s;
+    animation: taskIn 0.3s ease both;
+    cursor: grab;
+  }
+  .task-item:active { cursor: grabbing; }
+  .task-item:hover { border-color: #333; }
+  .task-item.done { opacity: 0.55; }
+
+  @keyframes taskIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .task-check {
+    width: 20px; height: 20px;
+    border-radius: 6px;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 1px;
+  }
+  .task-check:hover { border-color: var(--accent); }
+  .task-item.done .task-check {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .task-check svg { display: none; }
+  .task-item.done .task-check svg { display: block; }
+
+  .task-text {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+    word-break: break-word;
+    cursor: text;
+    outline: none;
+  }
+  .task-item.done .task-text {
+    color: var(--done-text);
+    text-decoration: line-through;
+    text-decoration-color: var(--muted);
+  }
+
+  .task-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
+  .task-item:hover .task-actions { opacity: 1; }
+
+  .task-del {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 15px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .task-del:hover { color: var(--red); background: var(--red-dim); }
+
+  /* ── Progress bar ── */
+  .progress-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .progress-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 99px;
+    transition: width 0.4s cubic-bezier(.4,0,.2,1);
+  }
+  .progress-label {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /* ── Empty state ── */
+  .empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 2;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+  }
+  .empty-state .emoji { font-size: 32px; display: block; margin-bottom: 8px; }
+
+  /* ── Thinking indicator ── */
+  .thinking {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--accent);
+    padding: 10px 14px;
+    background: var(--accent-dim);
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+  .thinking-dots span {
+    display: inline-block;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: bounce 1.2s infinite;
+    margin: 0 1px;
+  }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100%{ transform:translateY(0) } 40%{ transform:translateY(-6px) } }
+
+  /* ── Animations ── */
+  @keyframes fadeSlideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── No list selected ── */
+  .no-list {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+    gap: 12px;
+    border: 1px dashed var(--border);
+    border-radius: 16px;
+  }
+  .no-list .big { font-size: 40px; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .workspace { grid-template-columns: 1fr; }
+    .sidebar { display: flex; flex-direction: row; gap: 8px; overflow-x: auto; }
+    .sidebar-title { display: none; }
+    .list-nav { flex-direction: row; }
+    .add-list-btn { white-space: nowrap; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">Check<span>mate</span></div>
+    <div class="tagline">Your AI-powered task list</div>
+  </header>
+
+  <!-- API Key Setup -->
+  <div id="api-banner">
+    <div class="dot"></div>
+    <input id="api-key-input" type="password" placeholder="Paste your Anthropic API key to enable AI features…" autocomplete="off">
+    <button id="save-key-btn">Save Key</button>
+  </div>
+
+  <div id="key-status" class="key-status hidden">
+    <span>✦ Claude connected</span>
+    <button id="clear-key-btn">change key</button>
+  </div>
+
+  <!-- Workspace -->
+  <div class="workspace">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-title">Lists</div>
+      <div class="list-nav" id="list-nav"></div>
+      <button class="add-list-btn" id="add-list-btn">+ New list</button>
+    </aside>
+
+    <!-- Main area -->
+    <main class="main-area" id="main-area">
+      <div class="no-list">
+        <span class="big">📋</span>
+        Create or select a list to get started.
+      </div>
+    </main>
+
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────
+let state = {
+  apiKey: '',
+  lists: [],       // [{ id, name, items: [{id, text, done}] }]
+  activeListId: null
+};
+
+function genId() { return '_' + Math.random().toString(36).slice(2,10); }
+
+function save() {
+  localStorage.setItem('checkmate_state', JSON.stringify({
+    lists: state.lists,
+    activeListId: state.activeListId
+  }));
+}
+
+function load() {
+  const raw = localStorage.getItem('checkmate_state');
+  if (raw) { const d = JSON.parse(raw); state.lists = d.lists||[]; state.activeListId = d.activeListId||null; }
+  const key = localStorage.getItem('checkmate_key');
+  if (key) { state.apiKey = key; }
+}
+
+// ── API Key ────────────────────────────────────────────
+const apiBanner = document.getElementById('api-banner');
+const keyStatus = document.getElementById('key-status');
+const apiKeyInput = document.getElementById('api-key-input');
+const saveKeyBtn = document.getElementById('save-key-btn');
+const clearKeyBtn = document.getElementById('clear-key-btn');
+
+function updateKeyUI() {
+  if (state.apiKey) {
+    apiBanner.classList.add('hidden');
+    keyStatus.classList.remove('hidden');
+  } else {
+    apiBanner.classList.remove('hidden');
+    keyStatus.classList.add('hidden');
+  }
+}
+
+saveKeyBtn.addEventListener('click', () => {
+  const val = apiKeyInput.value.trim();
+  if (!val.startsWith('sk-ant-')) { alert('That doesn\'t look like a valid Anthropic key (should start with sk-ant-).'); return; }
+  state.apiKey = val;
+  localStorage.setItem('checkmate_key', val);
+  updateKeyUI();
+});
+
+clearKeyBtn.addEventListener('click', () => {
+  state.apiKey = '';
+  localStorage.removeItem('checkmate_key');
+  apiKeyInput.value = '';
+  updateKeyUI();
+});
+
+// ── Render ─────────────────────────────────────────────
+function render() {
+  renderNav();
+  renderMain();
+}
+
+function renderNav() {
+  const nav = document.getElementById('list-nav');
+  nav.innerHTML = '';
+  state.lists.forEach(list => {
+    const total = list.items.length;
+    const done = list.items.filter(i=>i.done).length;
+    const tab = document.createElement('div');
+    tab.className = 'list-tab' + (list.id===state.activeListId?' active':'');
+    tab.innerHTML = `
+      <span class="tab-name">${esc(list.name)}</span>
+      <span class="tab-count">${done}/${total}</span>
+      <button class="del-list" title="Delete list">✕</button>
+    `;
+    tab.addEventListener('click', (e) => {
+      if (e.target.closest('.del-list')) { deleteList(list.id); return; }
+      state.activeListId = list.id;
+      save();
+      render();
+    });
+    nav.appendChild(tab);
+  });
+}
+
+function renderMain() {
+  const main = document.getElementById('main-area');
+  const list = state.lists.find(l=>l.id===state.activeListId);
+  if (!list) {
+    main.innerHTML = `<div class="no-list"><span class="big">📋</span>Create or select a list to get started.</div>`;
+    return;
+  }
+
+  const done = list.items.filter(i=>i.done).length;
+  const total = list.items.length;
+  const pct = total ? Math.round(done/total*100) : 0;
+
+  main.innerHTML = `
+    <div class="list-header">
+      <input class="list-title-input" id="list-title" value="${esc(list.name)}" maxlength="60">
+      <button class="ai-btn" id="ai-toggle-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        Ask Claude
+      </button>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="progress-label">${pct}% done</div>
+    </div>
+
+    <div class="ai-prompt-box" id="ai-box">
+      <textarea id="ai-textarea" rows="2" placeholder="e.g. Generate a morning routine checklist, or suggest 5 more tasks for this list…"></textarea>
+      <div id="ai-thinking" style="display:none" class="thinking">
+        <span>Claude is thinking</span>
+        <span class="thinking-dots"><span></span><span></span><span></span></span>
+      </div>
+      <div class="ai-actions">
+        <button class="ai-cancel" id="ai-cancel-btn">Cancel</button>
+        <button class="ai-generate" id="ai-go-btn">Generate ✦</button>
+      </div>
+    </div>
+
+    <div class="add-bar">
+      <input class="add-input" id="new-task-input" placeholder="Add a task…" maxlength="300">
+      <button class="add-submit" id="add-task-btn">+</button>
+    </div>
+
+    <div class="tasks" id="tasks-list">
+      ${list.items.length===0 ? `<div class="empty-state"><span class="emoji">✨</span>No tasks yet.<br>Add one above or ask Claude to generate some.</div>` : list.items.map(item => taskHTML(item)).join('')}
+    </div>
+  `;
+
+  // Title input
+  document.getElementById('list-title').addEventListener('input', e => {
+    list.name = e.target.value; save(); renderNav();
+  });
+
+  // Add task
+  const newInput = document.getElementById('new-task-input');
+  document.getElementById('add-task-btn').addEventListener('click', () => addTask(list, newInput));
+  newInput.addEventListener('keydown', e => { if(e.key==='Enter') addTask(list, newInput); });
+
+  // AI toggle
+  const aiBox = document.getElementById('ai-box');
+  document.getElementById('ai-toggle-btn').addEventListener('click', () => {
+    if (!state.apiKey) { alert('Please save your Anthropic API key first.'); return; }
+    aiBox.classList.toggle('open');
+  });
+  document.getElementById('ai-cancel-btn').addEventListener('click', () => aiBox.classList.remove('open'));
+  document.getElementById('ai-go-btn').addEventListener('click', () => runClaude(list));
+
+  // Task events (delegated)
+  document.getElementById('tasks-list').addEventListener('click', e => {
+    const item = e.target.closest('.task-item');
+    if (!item) return;
+    const id = item.dataset.id;
+    if (e.target.closest('.task-check')) { toggleTask(list, id); return; }
+    if (e.target.closest('.task-del')) { removeTask(list, id); return; }
+  });
+}
+
+function taskHTML(item) {
+  return `
+    <div class="task-item${item.done?' done':''}" data-id="${item.id}">
+      <div class="task-check" title="Toggle">
+        <svg width="11" height="9" viewBox="0 0 11 9" fill="none" stroke="#0d0d0d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4.5 4 7.5 10 1.5"/>
+        </svg>
+      </div>
+      <div class="task-text" contenteditable="true" spellcheck="false"
+        onblur="updateTaskText(this)" data-id="${item.id}">${esc(item.text)}</div>
+      <div class="task-actions">
+        <button class="task-del" title="Delete">✕</button>
+      </div>
+    </div>
+  `;
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Task ops ───────────────────────────────────────────
+function addTask(list, input) {
+  const text = input.value.trim();
+  if (!text) return;
+  list.items.push({ id: genId(), text, done: false });
+  input.value = '';
+  save();
+  render();
+}
+
+function toggleTask(list, id) {
+  const item = list.items.find(i=>i.id===id);
+  if (item) { item.done = !item.done; save(); render(); }
+}
+
+function removeTask(list, id) {
+  list.items = list.items.filter(i=>i.id!==id);
+  save(); render();
+}
+
+window.updateTaskText = function(el) {
+  const id = el.dataset.id;
+  const list = state.lists.find(l=>l.id===state.activeListId);
+  if (!list) return;
+  const item = list.items.find(i=>i.id===id);
+  if (item) { item.text = el.textContent.trim(); save(); }
+};
+
+// ── List ops ───────────────────────────────────────────
+document.getElementById('add-list-btn').addEventListener('click', () => {
+  const name = prompt('List name:','New List');
+  if (!name) return;
+  const list = { id: genId(), name: name.trim()||'Untitled', items: [] };
+  state.lists.push(list);
+  state.activeListId = list.id;
+  save(); render();
+});
+
+function deleteList(id) {
+  if (!confirm('Delete this list and all its tasks?')) return;
+  state.lists = state.lists.filter(l=>l.id!==id);
+  if (state.activeListId===id) state.activeListId = state.lists[0]?.id||null;
+  save(); render();
+}
+
+// ── Claude AI ──────────────────────────────────────────
+async function runClaude(list) {
+  const textarea = document.getElementById('ai-textarea');
+  const prompt = textarea.value.trim();
+  if (!prompt) { textarea.focus(); return; }
+
+  const goBtn = document.getElementById('ai-go-btn');
+  const thinking = document.getElementById('ai-thinking');
+  goBtn.disabled = true;
+  thinking.style.display = 'flex';
+
+  const existingItems = list.items.map(i=>i.text).join('\n');
+  const systemPrompt = `You are a helpful task assistant embedded in a checklist app. When asked, generate concise, actionable checklist items.
+CURRENT LIST: "${list.name}"
+EXISTING ITEMS:
+${existingItems || '(none yet)'}
+
+Return ONLY a JSON array of strings, each being a task. No preamble, no markdown, no extra text. Example: ["Buy groceries","Call dentist","Review report"]`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': state.apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.error) {
+      alert('Claude error: ' + data.error.message);
+      return;
+    }
+
+    const raw = data.content?.[0]?.text?.trim() || '[]';
+    let tasks;
+    try {
+      // Strip markdown code fences if present
+      const cleaned = raw.replace(/^```[a-z]*\n?/,'').replace(/\n?```$/,'').trim();
+      tasks = JSON.parse(cleaned);
+    } catch {
+      alert('Claude returned unexpected output. Try again with a clearer prompt.');
+      return;
+    }
+
+    if (!Array.isArray(tasks) || tasks.length===0) {
+      alert('No tasks generated. Try rephrasing your prompt.');
+      return;
+    }
+
+    tasks.forEach(t => {
+      if (typeof t === 'string' && t.trim()) {
+        list.items.push({ id: genId(), text: t.trim(), done: false });
+      }
+    });
+
+    textarea.value = '';
+    document.getElementById('ai-box').classList.remove('open');
+    save(); render();
+
+  } catch (err) {
+    alert('Network error: ' + err.message);
+  } finally {
+    goBtn.disabled = false;
+    thinking.style.display = 'none';
+  }
+}
+
+// ── Init ───────────────────────────────────────────────
+load();
+updateKeyUI();
+render();
+</script>
+</body>
+</html>
